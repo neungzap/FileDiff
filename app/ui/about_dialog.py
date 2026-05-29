@@ -162,9 +162,9 @@ class AboutDialog(QDialog):
         lic_label = QLabel()
         lic_label.setOpenExternalLinks(True)
         lic_label.setText(
-            '<a href="https://www.gnu.org/licenses/gpl-3.0.html" '
+            '<a href="https://opensource.org/licenses/MIT" '
             'style="color:#2E7D32; text-decoration:none;">'
-            '⚖️ GNU General Public License v3.0 (GPL-3.0)</a>'
+            '⚖️ MIT License — Open Source</a>'
         )
         lic_label.setTextFormat(Qt.TextFormat.RichText)
         lic_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
