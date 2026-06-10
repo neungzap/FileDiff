@@ -46,7 +46,7 @@ class AboutDialog(QDialog):
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name_label)
 
-        ver_label = QLabel("Version 1.0.0")
+        ver_label = QLabel("Version 1.0.1")
         ver_font = QFont()
         ver_font.setPointSize(11)
         ver_label.setFont(ver_font)

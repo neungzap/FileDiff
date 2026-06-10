@@ -6,6 +6,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('icon_1024.png', '.'),
+        ('FileDiff.icns', '.'),
     ],
     hiddenimports=[
         'charset_normalizer',
@@ -60,8 +61,8 @@ app = BUNDLE(
         'NSPrincipalClass': 'NSApplication',
         'NSHighResolutionCapable': True,
         'CFBundleDisplayName': 'FileDiff',
-        'CFBundleShortVersionString': '1.0.0',
-        'CFBundleVersion': '1.0.0',
+        'CFBundleShortVersionString': '1.0.1',
+        'CFBundleVersion': '1.0.1',
         'NSRequiresAquaSystemAppearance': False,
         'NSDocumentsFolderUsageDescription': 'FileDiff needs access to open files for comparison.',
         'CFBundleDocumentTypes': [

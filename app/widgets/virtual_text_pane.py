@@ -18,8 +18,9 @@ DEFAULT_FONT_FAMILY = ""   # empty = system fixed font
 
 
 class VirtualTextPane(QAbstractScrollArea):
-    scroll_changed = pyqtSignal(int)
-    file_dropped   = pyqtSignal(str)
+    scroll_changed  = pyqtSignal(int)
+    file_dropped    = pyqtSignal(str)
+    paste_requested = pyqtSignal(str)   # side: "left" or "right"
 
     def __init__(self, side: str, parent=None):
         super().__init__(parent)
@@ -292,6 +293,8 @@ class VirtualTextPane(QAbstractScrollArea):
             self._copy_selection()
         elif event.matches(QKeySequence.StandardKey.SelectAll):
             self._select_all()
+        elif event.matches(QKeySequence.StandardKey.Paste):
+            self.paste_requested.emit(self._side)
         else:
             super().keyPressEvent(event)
 
@@ -305,6 +308,11 @@ class VirtualTextPane(QAbstractScrollArea):
         act_all = menu.addAction("Select All")
         act_all.setShortcut(QKeySequence.StandardKey.SelectAll)
         act_all.triggered.connect(self._select_all)
+        menu.addSeparator()
+        act_paste = menu.addAction("Paste as content")
+        act_paste.setShortcut(QKeySequence.StandardKey.Paste)
+        act_paste.setEnabled(bool(QApplication.clipboard().text()))
+        act_paste.triggered.connect(lambda: self.paste_requested.emit(self._side))
         menu.exec(event.globalPos())
 
     # ── Drag & drop ───────────────────────────────────────────────────────

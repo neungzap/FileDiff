@@ -52,18 +52,21 @@ class DiffWorker(QObject):
     finished = pyqtSignal(object, object, object)
     error = pyqtSignal(str)
 
-    def __init__(self, left_path, right_path, left_enc, right_enc, filter_engine):
+    def __init__(self, left_path, right_path, left_enc, right_enc, filter_engine,
+                 left_fc=None, right_fc=None):
         super().__init__()
         self._lp = left_path
         self._rp = right_path
         self._le = left_enc
         self._re = right_enc
         self._fe = filter_engine
+        self._left_fc  = left_fc   # pre-loaded (e.g. pasted text)
+        self._right_fc = right_fc
 
     def run(self):
         try:
-            lfc = load_file(self._lp, self._le)
-            rfc = load_file(self._rp, self._re)
+            lfc = self._left_fc  or load_file(self._lp, self._le)
+            rfc = self._right_fc or load_file(self._rp, self._re)
             result = compute_diff(lfc.lines, rfc.lines, self._fe)
             self.finished.emit(lfc, rfc, result)
         except (BinaryFileError, FileLoadError) as e:
@@ -136,6 +139,7 @@ class MainWindow(QMainWindow):
         self._left_pane = VirtualTextPane("left")
         self._left_pane.scroll_changed.connect(self._sync_scroll_from_left)
         self._left_pane.file_dropped.connect(self._drop_left)
+        self._left_pane.paste_requested.connect(self._paste_text)
 
         # ── Gutter ────────────────────────────────────────────────────────
         self._gutter = GutterWidget()
@@ -146,6 +150,7 @@ class MainWindow(QMainWindow):
         self._right_pane = VirtualTextPane("right")
         self._right_pane.scroll_changed.connect(self._sync_scroll_from_right)
         self._right_pane.file_dropped.connect(self._drop_right)
+        self._right_pane.paste_requested.connect(self._paste_text)
 
         # ── Diff area splitter: left | gutter | right ─────────────────────
         self._diff_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -203,6 +208,18 @@ class MainWindow(QMainWindow):
         act_open_right.setShortcut(QKeySequence("Ctrl+R"))
         act_open_right.triggered.connect(self._open_right)
         file_menu.addAction(act_open_right)
+
+        file_menu.addSeparator()
+
+        act_paste_left = QAction("Paste Text as &Left…", self)
+        act_paste_left.setShortcut(QKeySequence("Ctrl+Shift+V"))
+        act_paste_left.triggered.connect(lambda: self._paste_text("left"))
+        file_menu.addAction(act_paste_left)
+
+        act_paste_right = QAction("Paste Text as Ri&ght…", self)
+        act_paste_right.setShortcut(QKeySequence("Ctrl+Alt+V"))
+        act_paste_right.triggered.connect(lambda: self._paste_text("right"))
+        file_menu.addAction(act_paste_right)
 
         file_menu.addSeparator()
 
@@ -310,6 +327,62 @@ class MainWindow(QMainWindow):
 
     def _drop_right(self, path: str):
         self._load_right(path)
+
+    def _paste_text(self, side: str):
+        text = QApplication.clipboard().text()
+        if not text:
+            QMessageBox.information(self, "Paste", "Clipboard is empty.")
+            return
+        self._load_text(text, side)
+
+    def _load_text(self, text: str, side: str):
+        """Load raw text string into a pane (no file on disk)."""
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        lines = normalized.split("\n")
+        if lines and lines[-1] == "":
+            lines.pop()
+
+        label = "(pasted left)" if side == "left" else "(pasted right)"
+        fc = FileContent(
+            lines=lines,
+            encoding="utf-8",
+            line_ending="LF",
+            path=label,
+            size_bytes=len(text.encode()),
+        )
+
+        if side == "left":
+            self._left_path = label
+            self._left_enc  = "utf-8"
+            self._left_fc   = fc
+            self._browser.set_root(os.path.expanduser("~"))
+        else:
+            self._right_path = label
+            self._right_enc  = "utf-8"
+            self._right_fc   = fc
+            self._browser.set_root(os.path.expanduser("~"))
+
+        if self._left_path and self._right_path:
+            self._run_diff()
+        else:
+            plain = DiffResult()
+            plain.left_lines        = lines
+            plain.right_lines       = lines
+            plain.left_line_numbers  = list(range(1, len(lines) + 1))
+            plain.right_line_numbers = list(range(1, len(lines) + 1))
+            pane = self._left_pane if side == "left" else self._right_pane
+            pane.set_content(plain)
+            self._minimap.set_diff_data([], len(lines))
+            self._minimap.set_viewport(0, pane.visible_row_count)
+            self._status.update_diff_count(0)
+
+        if side == "left":
+            self._status.update_left(label, "utf-8", "LF", len(lines))
+        else:
+            self._status.update_right(label, "utf-8", "LF", len(lines))
+
+        self.setWindowTitle(f"FileDiff — {os.path.basename(self._left_path or '')} ↔ {os.path.basename(self._right_path or '')}"
+                            if self._left_path and self._right_path else "FileDiff")
 
     def _load_left(self, path: str):
         self._left_path = path
@@ -490,6 +563,8 @@ class MainWindow(QMainWindow):
             self._left_path, self._right_path,
             self._left_enc, self._right_enc,
             self._filter_engine,
+            left_fc=self._left_fc   if self._left_path  and self._left_path.startswith("(pasted")  else None,
+            right_fc=self._right_fc if self._right_path and self._right_path.startswith("(pasted") else None,
         )
         self._worker.moveToThread(self._worker_thread)
         self._worker_thread.started.connect(self._worker.run)
